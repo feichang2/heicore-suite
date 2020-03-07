@@ -1,0 +1,10 @@
+
+env
+env/*
+*record*
+*test*
+web
+web/*
+vue/node_modules
+vue/.vscode
+
