@@ -1,5 +1,5 @@
 <template>
-  <div class='page' :style="{backgroudColor:activate?'red':'white'}">
+  <div class='page' :style="{backgroundColor: activate?'red':'white'}">
 {{msg}}
   </div>
 </template>

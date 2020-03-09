@@ -1,18 +1,22 @@
 from threading import Thread
 from queue import Queue
-import socket, sys, time, os,eel
+import socket
+import sys
+import time
+import os
+import eel
 
 
-#直接HttpProxy().start()就可以开始一个线程
+# 直接HttpProxy().start()就可以开始一个线程
 class HttpProxy(Thread):
     __listening = 1
 
-    def __init__(self, file_path, host='0.0.0.0', port=8080):
+    def __init__(self, queue, file_path, host='0.0.0.0', port=8080):
         super().__init__()
         self.file_path = file_path
         self.host = host
         self.port = port
-        self.session_queue = Queue(maxsize=0)
+        self.queue = queue
 
     def run(self):
         proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -24,8 +28,8 @@ class HttpProxy(Thread):
         proxy.listen(1024)
         while self.__listening == 1:
             client, _ = proxy.accept()
-            Thread(target=self.record, args=(self.file_path, client)).start()
-            time.sleep(1)
+            GetData(self.queue, self.file_path, client).start()
+            time.sleep(0.1)
 
     def stop(self):
         self.__listening = 0
@@ -34,16 +38,34 @@ class HttpProxy(Thread):
         sender.connect((host, self.port))
         sender.sendto(''.encode(), (host, self.port))
         sender.close()
-        while not self.session_queue.empty:
-            (client, _) = self.session_queue.get()
+        while not self.queue.empty:
+            (client, _) = self.queue.get()
             client.close()
 
-    def record(self, path, client):
-        client.settimeout(2)
-        header = client.recv(4096)
+
+class GetData(Thread):
+    def __init__(self, queue, file_path, client):
+        super().__init__()
+        self.queue = queue
+        self.path = file_path
+        self.client = client
+
+    def run(self):
+        header = ''.encode()
+        print(self.name)
+        self.client.settimeout(1)
+        while True:
+            try:
+                response = self.client.recv(2048)
+                if not response:
+                    break
+                else:
+                    header += response
+            except:
+                break
         print(header)
-        self.session_queue.put((client, header))
-        with open(path, 'a') as f:
+        self.queue.put((self.client, header))
+        with open(self.path, 'a') as f:
             f.write(header.decode('utf-8'))
             f.close()
 
@@ -52,17 +74,16 @@ if __name__ == "__main__":
     with open('./test.record', 'w') as f:
         f.write('')
         f.close()
-    proxy = HttpProxy('./test.record')
+    session_queue = Queue(maxsize=0)
+    proxy = HttpProxy(session_queue, './test.record')
     proxy.start()
+    history=[]
     print('try to send sth')
-    sender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sender.connect(('192.168.0.103', 8080))
-    sender.sendto('just test can i end the threading'.encode(),
-                  ('192.168.0.103', 8080))
-    sender.close()
+    '''for i in range(32):
+        sender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sender.connect(('192.168.0.103', 8080))
+        sender.sendto('junk data ,test the theading'.encode(),
+                      ('192.168.0.103', 8080))
+        history.append(sender)'''
     time.sleep(32)
     proxy.stop()
-    sender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sender.connect(('192.168.0.103', 8080))
-    sender.sendto('try to end again'.encode(), ('192.168.0.103', 8080))
-    sender.close()
