@@ -54,7 +54,7 @@ def queryData(filter):  # 浏览器查询是否捕获到了请求
         print('query once')
         data=data.decode('utf-8')
         if data:
-            l=filter.split('|')#根据过滤规则检查,不符合的直接pass
+            l=filter.split('||')#根据过滤规则检查,不符合的直接pass
             for i in l:
                 if re.search(i,data):
                     client.close()

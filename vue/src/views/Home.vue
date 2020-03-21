@@ -145,7 +145,7 @@ export default {
       request_history: [],
       response_history: [],
       raw: 0,
-      filter:"css|js"//正则匹配的参数,'|'分割,交给python
+      filter:"css||js"//正则匹配的参数,'||'分割,交给python
     };
   }
 };
