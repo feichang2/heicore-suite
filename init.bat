@@ -1,1 +1,1 @@
-.\env\Scripts\activate.bat && set path=.\env\Scripts\;%path%
+.\env\Scripts\activate.bat && set path=%CD%\env\Scripts\;%path%

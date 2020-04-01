@@ -5,4 +5,5 @@ env/*
 *test*
 vue/node_modules
 vue/.vscode
+test/*
 

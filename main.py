@@ -1,5 +1,6 @@
 from HttpProxy import HttpProxy, GetData
 from queue import Queue
+from types import FunctionType
 import eel,re
 import socket
 import gevent.monkey
@@ -57,9 +58,8 @@ def queryData(filter):  # 浏览器查询是否捕获到了请求
             l=filter.split('||')#根据过滤规则检查,不符合的直接pass
             for i in l:
                 if re.search(i,data):
-                    client.close()
-                    return ''
-        return data
+                    return (data,True)
+        return (data,False)
     else:
         return ''
 
@@ -115,6 +115,11 @@ def sendDataToServer(data, flag=1):  # 发送http请求获得返回的http响应
         sendDataToClient(buf)
     return buf.decode('utf-8')
 
+@eel.expose
+def processData(data,script):
+    code=compile(script,"<string>","exec")
+    func=FunctionType(code.co_consts[0],globals(),"process")
+    return func(data)
 
 @eel.expose
 def sendDataToClient(data):  # 将对应的响应交给对应的会话
