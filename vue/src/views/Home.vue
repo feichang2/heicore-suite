@@ -4,10 +4,25 @@
       <el-tab-pane v-show="state==0" label="代理">
         <el-tabs type="border-card" @tab-click="requestChange">
           <el-tab-pane label="Raw">
-            <el-row>
-              <el-input type="textarea" :rows="20" style="width:45%;" v-model="request" />
-              <el-input type="textarea" :rows="20" style="width:45%;" v-model="response" />
+            <div @click.ctrl="increaseFont">
+              <el-row >
+              <el-input
+                class="mytext"
+                type="textarea"
+                :rows="10"
+                :style="{width:'45%',height:'50%',fontSize:ufontSize+'px'}"
+                v-model="request"
+              />
+              <el-input
+                class="mytext"
+                type="textarea"
+                :rows="10"
+                :style="{width:'45%',height:'50%',fontSize:ufontSize+'px'}"
+                v-model="response"
+              />
             </el-row>
+            </div>
+            
             <el-row>
               <el-switch v-model="isRequestScript" active-text="请求处理脚本"></el-switch>
               <el-switch v-model="isResponseScript" active-text="响应处理脚本"></el-switch>
@@ -131,9 +146,7 @@ export default {
           this.response_script
         )();
       }
-      eel.sendDataToClient(
-        this.response
-      );
+      eel.sendDataToClient(this.response);
       this.history.push([this.request, this.response, this.history_index++]);
       this.request = "";
       this.response = "";
@@ -163,11 +176,11 @@ export default {
       this.request = "";
     },
     moduleChange: function(tab, event) {
-      if ((tab.$props.label == "代理")) {
+      if (tab.$props.label == "代理") {
         this.state = 0;
-      } else if ((tab.$props.label == "重放")) {
+      } else if (tab.$props.label == "重放") {
         this.state = 1;
-      } else if ((tab.$props.label == "历史")) {
+      } else if (tab.$props.label == "历史") {
         this.state = 2;
       }
     },
@@ -241,6 +254,10 @@ export default {
     },
     sendToRepeater: function() {
       this.repeater.push([this.request, this.repeater_index++]);
+    },
+    increaseFont: function(event) {
+        console.log('once')
+        this.ufontSize++
     }
   },
   data() {
@@ -263,12 +280,17 @@ export default {
       repeater: [],
       repeater_index: 0,
       history_index: 0,
-      hexArray: []
+      hexArray: [],
+      ufontSize: 14
     };
   },
-  computed: {}
+  computed: {},
+  
 };
 </script>
 
-<style scoped>
+<style>
+.mytext .el-textarea__inner {
+  font-family: Consolas, "Liberation Mono";
+}
 </style>
