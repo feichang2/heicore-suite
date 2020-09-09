@@ -97,34 +97,38 @@ export default {
     },
     queryData: async function() {
       if (this.update_request_data) {
-        var response = await eel.queryData(this.filter)();
-        console.log("query once");
-        if (response && !response[1]) {
-          //not filtered and not null
-          this.buf = response[0];
-          this.request = this.buf.replace("keep-alive", "close");
-          this.update_request_data = false;
-          if (this.state != 0) {
-            this.$notify({
-              title: "一个新的包被捕获",
-              dangerouslyUserHTMLString: true,
-              message:
-                "" +
-                this.request
-                  .split("\n")
-                  .slice(0, 3)
-                  .join("\n")
-            });
+      if(window.dataComming){
+          var response = await eel.queryData(this.filter)();
+          console.log("query once");
+          if (response && !response[1]) {
+            //not filtered and not null
+            this.buf = response[0];
+            this.request = this.buf.replace("keep-alive", "close");
+            this.update_request_data = false;
+            if (this.state != 0) {
+              this.$notify({
+                title: "一个新的包被捕获",
+                dangerouslyUserHTMLString: true,
+                message:
+                  "" +
+                  this.request
+                    .split("\n")
+                    .slice(0, 3)
+                    .join("\n")
+              });
+            }
+            clearInterval(this.query_task);
+            this.query_task = 0;
+            window.dataComming=false;
+          } else if (response && response[1]) {
+            //filtered
+            this.history.push([
+              response[0],
+              await eel.sendDataToServer(response[0])(),
+              this.history_index++
+            ]);
+            window.dataComming=false;
           }
-          clearInterval(this.query_task);
-          this.query_task = 0;
-        } else if (response && response[1]) {
-          //filtered
-          this.history.push([
-            response[0],
-            await eel.sendDataToServer(response[0])(),
-            this.history_index++
-          ]);
         }
       }
     },
