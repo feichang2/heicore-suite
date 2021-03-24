@@ -1,18 +1,16 @@
 from threading import Thread
 from queue import Queue
-import socket
-import sys
-import time
-import os
-import eel
+import sys,re,gevent,time,os,eel,socket,ssl,pprint
 
 
 # 直接HttpProxy().start()就可以开始一个线程作为代理
 class HttpProxy(Thread):
     __listening = 1
 
-    def __init__(self, queue, file_path, callback, host='0.0.0.0', port=8080):
+    def __init__(self, queue, file_path, callback=None, host='0.0.0.0', port=8080,secure=False):
         super().__init__()
+        #是否启用https
+        self.secure=secure
         #备份路径
         self.file_path = file_path
         #代理地址
@@ -23,11 +21,23 @@ class HttpProxy(Thread):
         self.queue = queue
         #接收到数据后的回调函数
         self.callback = callback
+        #是否阻塞
+        self.is_forward = True
+        #重放数据
+        self.repeater = []
+        #历史数据
+        self.history = []
+        #请求过滤器
+        self.response_filters = []
+        if self.secure:
+            self.context=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+            self.context.load_cert_chain(certfile="cert.pem",keyfile="key.pem")
 
     def run(self):
         proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             proxy.bind((self.host, self.port))
+            print(f"Binding @{self.host}:{self.port}")
         except:
             sys.exit("bind error!!Is the port free of use?")
         print("proxy start")
@@ -35,12 +45,19 @@ class HttpProxy(Thread):
         while self.__listening == 1:
             #处于监听状态时,对于每一个连接到代理的socket,开启一个线程用于接收它的数据,然后代理继续监听,等待下一个连接
             client, _ = proxy.accept()
-            GetData(self.queue, self.file_path, client, self.callback).start()
+            #if self.secure:
+                #client=self.context.wrap_socket(client,server_side=True)
+            if self.is_forward:
+                ForwardRequest(self.file_path,client,self.history,self.response_filters,self.secure,self.context).start()
+            else:
+                GetData(self.queue, self.file_path, client, self.callback,self.secure,self.context).start()
             # time.sleep(0.1)
     
     def send(self,data:str):
         #向自己发请求
         sender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if self.secure:
+            sender=ssl.wrap_socket(sender)
         host = 'localhost' if self.host == '0.0.0.0' else self.host
         sender.connect((host, self.port))
         sender.sendto(data.encode(), (host, self.port))
@@ -56,78 +73,125 @@ class HttpProxy(Thread):
         while not self.queue.empty:
             (client, _) = self.queue.get()
             client.close()
+    def send_data_to_server(self, data, time_stamp,socket):
+        gevent.spawn(_send_data_to_server,self.history,data, time_stamp,socket,self.response_filters,self.secure)
+    
+    
+    def send_to_repeater(self,data):
+        self.repeater.append({'data':data})
+    def delete_a_repeater(self,index):
+        del self.repeater[index]
+    def add_filter_to_response(self,func):
+        self.response_filters.append(func)
 
-    def set_data_to_server(self, data):
+def _send_data_to_server(history, data, time_stamp,client,response_filters,secure):
+    pprint.pprint(data)
+    host,port=re.findall(r"Host: ([a-z\.]*)(:\d+)*",data)[0]
+    if port=='':
+        port=':443'if secure else ':80'
+    port=port[1:]
+    if(data==''):
+        client.close()
+        return
+    
+    host = host.strip()
+    if host == 'localhost':
+        host = "127.0.0.1"
+    # else:
+    #     host = (socket.getaddrinfo(host, int(port))[0][4][0])
+    # print(host)
+    # print('finish print')
+    sender = socket.socket(socket.AF_INET)
+    if secure:
+        context=ssl.create_default_context()
+        sender=context.wrap_socket(sender,server_hostname=host)
+    print("host:"+host)
+    print('port:%d' % int(port))
+    sender.connect((host, int(port)))
+    # print(data.encode('utf-8'))
+    sender.send(data.encode('ascii'))
+    buf = b''
+    sender.settimeout(2)
+    while True:
         try:
-            host = data.split('\r\n')[1].split(':')
-        except:
-            host = data.split('\n')[1].split(':')
-        # print(data)
-        if len(host) == 2:
-            host.append('80')
-        (_, host, port) = host
-        host = host.strip()
-        if host == 'localhost':
-            host = "127.0.0.1"
-        else:
-            host = (socket.getaddrinfo(host, int(port))[0][4][0])
-        print(host)
-        print('finish print')
-        sender = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print("host"+host)
-        print('port%d' % int(port))
-        sender.connect((host, int(port)))
-        print(data.encode('utf-8'))
-        sender.send(data.encode('utf-8'))
-        buf = b''
-        sender.settimeout(3)
-        try:
-            response = sender.recv(1024)
-            buf = response
-            while response:
-                response = sender.recv(1024)
+            response = sender.recv(512)
+            if not response:
+                break
+            else:
                 buf += response
         except:
-            pass
-        print(buf)
-        return buf
+            break
+    sender.close()
+    print(buf)
+    for func in response_filters:
+        func(buf)
+    history.append((time_stamp,data,buf))#stamp,request,response
+    _send_data_to_client(client,buf)
 
-    def send_data_to_client(self,client,data):
-        client.send(data)
-        client.close()
+def _send_data_to_client(client,data):
+    client.send(data)
+    client.close()
 
-
+def _get_data(client):
+    header = b''
+    client.settimeout(1)
+    while True:
+        try:
+            response = client.recv(512)
+            if not response:
+                break
+            else:
+                header += response
+        except:
+            break
+    #print(header)
+    return header
 class GetData(Thread):
     #对于每一个连接到代理的套接字,一个单独的线程用来获取数据
-    def __init__(self, queue, file_path, client, callback):
+    def __init__(self, queue, file_path, client, callback, secure, context):
         super().__init__()
         self.queue = queue
         self.path = file_path
         self.client = client
         self.callback = callback
+        self.secure = secure
+        self.context = context
 
     def run(self):
-        header = ''.encode()
-        print(self.name)
-        self.client.settimeout(1)
-        while True:
-            try:
-                response = self.client.recv(2048)
-                if not response:
-                    break
-                else:
-                    header += response
-            except:
-                break
-        print(header)
+        header=_get_data(self.client)
+        if header[:7]==b"CONNECT":
+            self.client.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
+            self.client=self.context.wrap_socket(self.client,server_side=True)
+            header=_get_data(self.client)
+        header=header.replace(b"Connection: keep-alive",b"Connection: close")
         #数据放入队列
-        self.queue.put((self.client, header))
+        self.queue.put((self.client, header.decode('ascii'), time.time()))
         #执行回调函数
         self.callback()
         #备份一下数据,为了调试
         with open(self.path, 'a') as f:
-            f.write(header.decode('utf-8'))
+            f.write(header.decode('ascii'))
 
+class ForwardRequest(Thread):
+    def __init__(self,file_path,client,history,response_filters,secure,context):
+        super().__init__()
+        self.path = file_path
+        self.client=client
+        self.history=history
+        self.response_filters=response_filters
+        self.secure=secure
+        self.context=context
+    def run(self):
+        header=_get_data(self.client)
+        if header[:7]==b"CONNECT":
+            self.client.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
+            self.client=self.context.wrap_socket(self.client,server_side=True)
+            header=_get_data(self.client)
+        #备份一下数据,为了调试
+        with open(self.path, 'a') as f:
+            f.write(header.decode('ascii'))
+        _send_data_to_server(self.history, header.decode('ascii'), time.time() ,self.client,self.response_filters,self.secure)
+        
 
 if __name__ == "__main__":
     with open('./test.record', 'w') as f:

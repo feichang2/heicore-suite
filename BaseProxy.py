@@ -158,6 +158,9 @@ class Request(HttpTransfer):
         req_data = req_data.encode("utf-8")
         req_data += self.get_body_data()
         return req_data
+    
+    def from_data(self):
+        pass
 
 
 
@@ -430,7 +433,7 @@ class ProxyHandle(BaseHTTPRequestHandler):
             #将响应信息返回给客户端
             self.response = Response(self.request,self._proxy_sock)
             # self.response = self.mitm_response(self.response)
-            
+            self.server.response_queue.put(self)
             self.is_response_blocked.wait()
             if self.response:
                 self.self.request.sendall(self.response.to_data())

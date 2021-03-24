@@ -3,23 +3,25 @@ heicore-suite是一个黑曜石浏览器的子项目,它主要参考的是burp-s
 
 暂时使用eel实现界面和python的交互,前端使用vue,element-ui
 
-参考选项(不分先后):
-- django/flask+vue
-- django/flask+普通的js/jquery
-- eel+普通的js/jquery
+## 运行方式
+`pip install eel gevent`
 
 
-待实现项(分先后)
-* [ ] 代理模块(proxy):拦截http包并修改,支持十六进制模式,支持python正则规则过滤,支持自写脚本处理内容 80%
-* [ ] 历史模块(history):存放所有的经过代理的未被丢弃的包及其响应(被过滤的包后台发请求),支持搜索,排序
-* [ ] 重放模块(repeater):实现http包的重放,响应支持html渲染
-* [ ] 测试模块(contruder):多线程发包,指定测试点,测试数据可以通过用户自定义python代码生成(使用字典文件:fopen,read;随机整数:for i in randint(0,100))(提供一些常用的代码段)
-* [ ] 编码模块(decoder):实现常用的加解密
-* [ ] 终端模块:实现和远程shell的通信(参考中国蚁剑,支持加密传输,提供常用命令,高亮,输入参考jupyter)
-* [ ] 报告模块:实现对渗透测试报告的编写和管理(默认放在全局数据库中,快捷键参考jupyter,支持笔记标签,提供模板,支持相互索引,支持使用vscode编写后导入数据库)
-* [ ] 实现所有输入框都支持vim模式
-* [ ] 右键菜单各模块交互数据,快捷键交互
-* [ ] 实现element主题颜色切换(默认要五颜六色的黑)
-* [ ] 实现通过一个数据库文件打包用户设置及数据,支持从其他数据库文件导入用户设置而不导入数据
+```python
+python main.py
+```
+然后就会打开edge浏览器到localhost:8000
 
-没思路的选项:支持python插件?
+代理监听在6666端口上
+
+![Snipaste_2021-03-24_21-15-52](/assets/Snipaste_2021-03-24_21-15-52.png)
+
+## 目录结构
+
+`vue`:前端源码
+
+`web`:构建出的前端文件
+
+`HttpProxy.py`:http/https代理
+
+`main.py`:使用eel开启前端以及和后端通信
